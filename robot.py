@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from numpy.linalg import inv
 import cv2
 
 
@@ -19,8 +18,9 @@ class Robot:
 
 
 def main():
+    something = 0
     robot = Robot(something)
-    while (true):
+    while True:
         robot.kalman()
 
 
