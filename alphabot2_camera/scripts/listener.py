@@ -26,14 +26,19 @@ class image:
     def callback(self, msg):
         rospy.loginfo('Image received')
         self.image = self.br.imgmsg_to_cv2(msg)
-def main():
-     while not rospy.is_shutdown():
+    def start(self):
+        rospy.loginfo("Timing images")
+        #rospy.spin()
+        while not rospy.is_shutdown():
+            rospy.loginfo('publishing image')
 
-        if self.IMGS.image is not None:
-            self.IMGS.pub.publish(self.br.cv2_to_imgmsg(self.image))
-        self.IMGS.loop_rate.sleep()
-        robot.kalman()
+            if self.image is not None:
+                self.pub.publish(self.br.cv2_to_imgmsg(self.image))
+                cv2.imwrite("img.jpg", self.image)
+            self.loop_rate.sleep()
 
 
 if __name__ == "__main__":
-    main()
+    rospy.init_node("imagetimer111", anonymous=True)
+    img=image()
+    img.start()
