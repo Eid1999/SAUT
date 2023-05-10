@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>alphabot2_camera</name>
+  <name>alphabot2_control</name>
   <version>0.0.0</version>
-  <description>The alphabot2_camera package</description>
+  <description>The alphabot2_control package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
@@ -19,7 +19,7 @@
   <!-- Url tags are optional, but multiple are allowed, one per tag -->
   <!-- Optional attribute type can be: website, bugtracker, or repository -->
   <!-- Example: -->
-  <!-- <url type="website">http://wiki.ros.org/alphabot2_camera</url> -->
+  <!-- <url type="website">http://wiki.ros.org/alphabot2_control</url> -->
 
 
   <!-- Author tags are optional, multiple are allowed, one per tag -->
@@ -50,20 +50,11 @@
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>rospy</build_depend>
-  <build_depend>cv2</build_depend>
-  <build_depend>cv2_brigde</build_depend>
-  <build_depend>os</build_depend>
-  <build_depend>sensor_msgs.msg</build_depend>
+  <build_depend>geometry_msg.msg</build_depend>
   <build_export_depend>rospy</build_export_depend>
-  <build_export_depend>cv2</build_export_depend>
-  <build_export_depend>cv2_brigde</build_export_depend>
-  <build_export_depend>sensor_msgs.msg</build_export_depend>
-  <build_export_depend>os</build_export_depend>
+  <build_export_depend>geometry_msg.msg</build_export_depend>
   <exec_depend>rospy</exec_depend>
-  <exec_depend>cv2</exec_depend>
-  <exec_depend>cv2_bridge</exec_depend>
-  <exec_depend>sensor_msgs.msg</exec_depend>
-  <exec_depend>os</exec_depend>
+  <exec_depend>geometry_msg.msg</exec_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->
