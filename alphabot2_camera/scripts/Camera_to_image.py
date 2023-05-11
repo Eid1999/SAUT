@@ -11,8 +11,7 @@ class image:
         self.image = None
         self.br = CvBridge()
         # Node cycle rate (in Hz).
-        self.loop_rate = rospy.Rate(10)
-
+        self.loop_rate = rospy.Rate(1000)
         # Publishers
         #self.pub = rospy.Publisher('image', Image,queue_size=10)
 
@@ -23,20 +22,28 @@ class image:
     def callback(self, msg):
         rospy.loginfo('Image received')
         self.image = self.br.imgmsg_to_cv2(msg)
-        
+    def aruco_detection(self):
+        arucoDict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_50)
+        arucoParams = cv2.aruco.DetectorParameters_create()
+        (corners, self.aruco_ids, rejected) = cv2.aruco.detectMarkers(self.image, arucoDict,parameters=arucoParams)
 
 def main():
+    directory = "imgs"
+    os.mkdir(directory)
     rospy.init_node("Image", anonymous=True)
-    img=image()
+    camera=image()
     rospy.loginfo("Image Node has started")
     i=0
+
     while not rospy.is_shutdown():            
-        if img.image is not None:
-                #rospy.loginfo('publishing image')
-                #img.pub.publish(img.br.cv2_to_imgmsg(img.image))
-                cv2.imwrite(f"saved_img_{i}.jpg", img.image)
+        if camera.image is not None:
+                rospy.loginfo('publishing image')
+                #img.pub.publish(camera.br.cv2_to_imgmsg(camera.image))
+                cv2.imwrite(os.path.join(directory, f"saved_img_{i}.jpg"), camera.image)
+                camera.aruco_detection()
                 i+=1
-        img.loop_rate.sleep()
+                camera.image= None
+        camera.loop_rate.sleep()
 
 if __name__ == "__main__":
     main()
