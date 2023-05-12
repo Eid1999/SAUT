@@ -21,7 +21,7 @@ def main():
     rospy.loginfo("Control Node has started")
     
     while not rospy.is_shutdown():  
-        motor.message_creation(l_x=2.0,l_y=2,a_z=1.0)
+        motor.message_creation(l_x=0.2,l_y=.5,a_z=1.0)
         rospy.loginfo("Publishing Linear and angular velocities")        
         motor.pub.publish(motor.msg)
         motor.loop_rate.sleep()
