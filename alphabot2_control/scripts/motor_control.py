@@ -8,7 +8,7 @@ class control:
         # Node cycle rate (in Hz).
         self.loop_rate = rospy.Rate(10)
         # Publishers
-        self.pub = rospy.Publisher('alphabot2/cmd_vel', Twist,queue_size=10)
+        self.pub = rospy.Publisher('/cmd_vel', Twist,queue_size=10)
 
     def message_creation(self,l_x=0,l_y=0,l_z=0,a_x=0,a_y=0,a_z=0):
         self.msg=Twist()
@@ -16,12 +16,13 @@ class control:
         self.msg.linear.y=l_y
         self.msg.angular.z=a_z
 def main():
-    rospy.init_node("Motor Control", anonymous=True)
+    rospy.init_node("Motor_Control", anonymous=True)
     motor=control()
     rospy.loginfo("Control Node has started")
     
     while not rospy.is_shutdown():  
-        motor.message_creation(l_x=2.0,a_z=1.0)        
+        motor.message_creation(l_x=2.0,l_y=2,a_z=1.0)
+        rospy.loginfo("Publishing Linear and angular velocities")        
         motor.pub.publish(motor.msg)
         motor.loop_rate.sleep()
 
