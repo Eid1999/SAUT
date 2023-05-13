@@ -9,19 +9,21 @@ class odometry():
         self.v_x=0
         self.v_y=0
         self.a_z=0
-        self.t=0
         self.theta=0
-        self.t0=rospy.get_time()
-        self.loop_rate = rospy.Rate(2)
+        self.time=0.5
+        self.loop_rate = rospy.Rate(self.time**(-1))
+        self.callback_active=0
         
     def update(self):
+        
         rospy.Subscriber("/cmd_vel",Twist,self.callback)
-        self.theta+=self.a_z*self.t
-        self.x+=self.v_x*np.cos(self.theta)*self.t
-        self.y+=self.v_x*np.sin(self.theta)*self.t
-        rospy.loginfo(f"Position x:{self.x}, Position y:{self.y}, Orientation:{np.rad2deg(self.theta)}")
-        self.v_x=0
-        self.a_z=0
+        if self.callback_active:
+            self.theta+=self.a_z*self.time
+            self.x+=self.v_x*np.cos(self.theta)*self.time
+            self.y+=self.v_x*np.sin(self.theta)*self.time
+            rospy.loginfo(f"Position x:{self.x}, Position y:{self.y}, Orientation:{np.rad2deg(self.theta%2*np.pi)}")
+            self.callback_active=0
+    
         
         
 
@@ -29,8 +31,7 @@ class odometry():
     def callback(self, msg):
         self.v_x=msg.linear.x
         self.a_z=msg.angular.z
-        self.t=rospy.get_time()-self.t0
-        self.t0=rospy.get_time()
+        self.callback_active=1
        
 
 

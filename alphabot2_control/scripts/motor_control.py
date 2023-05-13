@@ -6,7 +6,7 @@ from geometry_msgs.msg import Twist
 class control:
     def __init__(self):
         # Node cycle rate (in Hz).
-        self.loop_rate = rospy.Rate(10)
+        self.loop_rate = rospy.Rate(2)
         # Publishers
         self.pub = rospy.Publisher('/cmd_vel', Twist,queue_size=10)
 
