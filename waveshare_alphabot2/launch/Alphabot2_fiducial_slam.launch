@@ -23,7 +23,7 @@
     <arg name="covariance_diagonal" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"/>
     <arg name="read_only_map" default="false"/>
 
-    <include file="$(find aruco_detect)/launch/aruco_detect.launch"/>
+    <include file="$(find aruco_detection.launch)/launch/aruco_detection.launch"/>
     <node type="fiducial_slam" pkg="fiducial_slam" output="screen" name="fiducial_slam">
         <!-- We're creating a new map so clear the old map -->
         <param name="map_file" value="$(env HOME)/.ros/slam/map.txt" />
