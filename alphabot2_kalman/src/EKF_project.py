@@ -3,10 +3,13 @@ import rospy
 from geometry_msgs.msg import PoseWithCovarianceStamped
 import numpy as np
 import matplotlib.pyplot as plt
-
+from fiducial_msgs.msg import FiducialTransformArray
+from math import atan2
+ 
 class Kalman_Filter():
     def __init__(self):
         
+        self.Aruco_location={0:[1,2],1:[5,1],2:[2,1],3:[4,3],4:[2,3],5:[10,2],10:[1,1]}
         rospy.init_node('kalman_filter', anonymous=True)
         # Time interval in seconds
         self.dk = 1
@@ -147,24 +150,28 @@ class Kalman_Filter():
             
             self.E_k = self.E_k - (K_k @ self.C_k @ self.E_k)
     def callback(self,msg):
-        msg=msg.pose.pose
-        obs_vel=np.sqrt((msg.position.x-self.z_k_observation_vector[-1][0])^2+(msg.position.y-self.z_k_observation_vector[-1][1])^2)/self.dx
-        obs_ang_vel=(self.z_k_observation_vector[-1][2]-msg.orientation.z)/self.dx
-        rospy.loginfo('Measurment received')
-        self.predict()
-        
-        self.z_k_observation_vector= [msg.position.x,msg.postition.y,obs_vel,obs_ang_vel]
-        self.observated_x.append(self.z_k_observation_vector[0])
-        self.observated_y.append(self.z_k_observation_vector[1])
-        self.observated_ang.append(self.z_k_observation_vector[2])
-        self.observated_vel.append(self.z_k_observation_vector[3])
-        self.observated_ang_vel.append(self.z_k_observation_vector[4])
+        if len(msg.transforms)!=0:
+            msg=msg.transforms[-1]
+            x,y=self.Aruco_location[msg.fiducial_id]
+            msg=msg.transform.translation
+            x-=msg.x
+            y-=msg.y
+            orientation=atan2(y, x)
+            obs_vel=np.sqrt((x-self.z_k_observation_vector[0])**2+(y-self.z_k_observation_vector[1])**2)/self.dk
+            obs_ang_vel=(self.z_k_observation_vector[2]-orientation)/self.dk
+            self.predict()
+            self.z_k_observation_vector= [x,y,orientation,obs_vel,obs_ang_vel]
+            self.observated_x.append(self.z_k_observation_vector[0])
+            self.observated_y.append(self.z_k_observation_vector[1])
+            self.observated_ang.append(self.z_k_observation_vector[2])
+            self.observated_vel.append(self.z_k_observation_vector[3])
+            self.observated_ang_vel.append(self.z_k_observation_vector[4])
             
-        self.update()
-            
-        self.state_estimate_k_minus_1 = self.state_estimate_k
-        self.state_true_k_minus_1=self.state_true_k
-        self.E_k_minus_1 = self.E_k
+            self.update()
+                
+            self.state_estimate_k_minus_1 = self.state_estimate_k
+            self.state_true_k_minus_1=self.state_true_k
+            self.E_k_minus_1 = self.E_k
             
 
 
@@ -177,12 +184,15 @@ def main():
     num_steps=100
     kalman=Kalman_Filter()
     
-   
+    
     while not rospy.is_shutdown():
-    #for k in range(num_steps):
-        rospy.Subscriber("/fiducial_pose",PoseWithCovarianceStamped,kalman.callback)
+    #for k in range(num_steps)
+        rospy.Subscriber("/fiducial_transforms",FiducialTransformArray,kalman.callback)
+        if len(kalman.estimated_x)!=0:
+            rospy.loginfo(f"Position X:{kalman.estimated_x[-1]},\n Position Y:{kalman.estimated_y[-1]}\n Orientation:{kalman.estimated_ang[-1]} ")
 
         #kalman.callback(0)
+        kalman.loop.sleep()
 
     timesteps = np.arange(num_steps)
     if plot!=0:
