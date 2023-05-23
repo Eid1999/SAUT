@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from fiducial_msgs.msg import FiducialTransformArray
 from math import atan2
 from scipy.spatial.transform import Rotation as R
+import cv2
 
  
 class Kalman_Filter():
@@ -145,11 +146,14 @@ class Kalman_Filter():
                 rotation=msg.transform.rotation
                 RmatrixAruco=R.from_euler('z', angleAruco, degrees=False).as_matrix()
                 TmatrixAruco=np.array([xAruco,yAruco,0])
+                
                 rotationMatrix=R.from_quat([rotation.x, rotation.y, rotation.z, rotation.w])
                 rotationMatrix=rotationMatrix.as_matrix()
+                cv2.Rodrigues(rotationMatrix,rotationMatrix)
                 translationMatrix=np.array([translation.x,translation.y,translation.z])
                 pos=np.dot((translationMatrix-TmatrixAruco).transpose(),rotationMatrix)
-                angle=R.from_matrix(rotationMatrix-RmatrixAruco).as_euler('zxy', degrees=False)[0]
+                cv2.Rodrigues(rotationMatrix,rotationMatrix)
+                angle=R.from_matrix(rotationMatrix).as_euler('zxy', degrees=False)[0]
 
                 #a=2*(rotation.x*rotation.y-rotation.z*rotation.w)
                 #b=rotation.w**2-rotation.x**2-rotation.y**2+rotation.z**2
