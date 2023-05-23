@@ -13,9 +13,17 @@ import time
 
 def message_creation(i):
     message=FiducialTransform()
-    message.fiducial_id=i
-    message.transform.translation.x=9*(random.random())+1 
-    message.transform.translation.y=9*(random.random())+1 
+    j=int(4*random.random()+1)
+    for a in range(j):
+        message.fiducial_id=i
+        message.transform.translation.x=9*(random.random())+1 
+        message.transform.translation.y=9*(random.random())+1
+        message.transform.translation.x=9*(random.random())+1
+        message.transform.rotation.w= 9*(random.random())+1
+        message.transform.rotation.z= 9*(random.random())+1
+        message.transform.rotation.y= 9*(random.random())+1
+        message.transform.rotation.x= 9*(random.random())+1
+    
     messageArray=FiducialTransformArray()
     messageArray.transforms.append(message)
     

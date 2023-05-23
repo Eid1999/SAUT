@@ -5,11 +5,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from fiducial_msgs.msg import FiducialTransformArray
 from math import atan2
+from scipy.spatial.transform import Rotation as R
+
  
 class Kalman_Filter():
     def __init__(self):
         
-        self.Aruco_location={0:[1,2],1:[5,1],2:[2,1],3:[4,3],4:[2,3],5:[10,2],10:[1,1]}
+        self.Aruco_location={0:(1,2,np.pi/2),1:(5,1,np.pi/2),2:(2,1,np.pi/2),3:(4,3,np.pi/2),4:(2,3,np.pi/2),5:(10,2,np.pi/2),10:(1,1,np.pi/2)}
         rospy.init_node('kalman_filter', anonymous=True)
         # Time interval in seconds
         self.dk = 1
@@ -69,7 +71,7 @@ class Kalman_Filter():
             
         # x_k_minus_1
         self.state_estimate_k_minus_1 = np.array([0.0,0.0,0.0,0.0,0.0])
-        self.state_true_k_minus_1 = np.array([0.0,0.0,0.0,0.0,0.0])
+        
             
         #imput
         self.u_k_minus_1 = np.array([0.1,0.05])
@@ -82,11 +84,7 @@ class Kalman_Filter():
                         [  0,  0, 0,0 ,0.1 ],
                         ])
             
-        self.true_x = []
-        self.true_y = []
-        self.true_ang = []
-        self.true_vel = []
-        self.true_ang_vel = []
+
         self.estimated_x = []
         self.estimated_y = []
         self.estimated_ang = []
@@ -109,22 +107,8 @@ class Kalman_Filter():
                            [1,0],
                            [0,1]])
 
-        B_true = np.array([[np.cos(self.state_true_k_minus_1[2])*self.dk, 0],
-                  [np.sin(self.state_true_k_minus_1[2])*self.dk, 0],
-                  [0, self.dk],
-                  [1,0],
-                  [0,1]])
-
         self.state_estimate_k = np.dot(self.A_k_minus_1, self.state_estimate_k_minus_1) + np.dot(B_estimate,self.u_k_minus_1) + self.process_noise_k_minus_1
 
-                
-        self.state_true_k = np.dot(self.A_k_minus_1, self.state_true_k_minus_1) + np.dot(B_true,self.u_k_minus_1) + self.process_noise_k_minus_1
-        
-        self.true_x.append(self.state_true_k[0])
-        self.true_y.append(self.state_true_k[1])
-        self.true_ang.append(self.state_true_k[2])
-        self.true_vel.append(self.state_true_k[3])
-        self.true_ang_vel.append(self.state_true_k[4])
                 
         self.E_k = self.A_k_minus_1 @ self.E_k_minus_1 @ self.A_k_minus_1.T + (self.Q_k)
         
@@ -150,13 +134,35 @@ class Kalman_Filter():
             
             self.E_k = self.E_k - (K_k @ self.C_k @ self.E_k)
     def callback(self,msg):
+        xArray=[]
+        yArray=[]
+        orientationArray=[]
         if len(msg.transforms)!=0:
-            msg=msg.transforms[-1]
-            x,y=self.Aruco_location[msg.fiducial_id]
-            msg=msg.transform.translation
-            x-=msg.x
-            y-=msg.y
-            orientation=atan2(y, x)
+            for i in msg.transforms:
+                msg=msg.transforms[-1]
+                xAruco,yAruco,angleAruco=self.Aruco_location[msg.fiducial_id]
+                translation=msg.transform.translation
+                rotation=msg.transform.rotation
+                RmatrixAruco=R.from_euler('z', angleAruco, degrees=False).as_matrix()
+                TmatrixAruco=np.array([xAruco,yAruco,0])
+                rotationMatrix=R.from_quat([rotation.x, rotation.y, rotation.z, rotation.w])
+                rotationMatrix=rotationMatrix.as_matrix()
+                translationMatrix=np.array([translation.x,translation.y,translation.z])
+                pos=np.dot((translationMatrix-TmatrixAruco).transpose(),rotationMatrix)
+                angle=R.from_matrix(rotationMatrix-RmatrixAruco).as_euler('zxy', degrees=False)[0]
+
+                #a=2*(rotation.x*rotation.y-rotation.z*rotation.w)
+                #b=rotation.w**2-rotation.x**2-rotation.y**2+rotation.z**2
+                #angle=atan2(a,b)
+                xArray.append(pos[0])
+                yArray.append(pos[1])
+                orientationArray.append(angle)
+                
+               
+            x=sum(xArray)/len(xArray)
+            y=sum(yArray)/len(yArray)
+            orientation=sum(orientationArray)/len(orientationArray)
+            
             obs_vel=np.sqrt((x-self.z_k_observation_vector[0])**2+(y-self.z_k_observation_vector[1])**2)/self.dk
             obs_ang_vel=(self.z_k_observation_vector[2]-orientation)/self.dk
             self.predict()
@@ -166,11 +172,10 @@ class Kalman_Filter():
             self.observated_ang.append(self.z_k_observation_vector[2])
             self.observated_vel.append(self.z_k_observation_vector[3])
             self.observated_ang_vel.append(self.z_k_observation_vector[4])
-            
+        
             self.update()
                 
             self.state_estimate_k_minus_1 = self.state_estimate_k
-            self.state_true_k_minus_1=self.state_true_k
             self.E_k_minus_1 = self.E_k
             
 
@@ -180,7 +185,7 @@ class Kalman_Filter():
 def main():
     # Number of measurements
     #k=1
-    plot=1
+    plot=0
     num_steps=100
     kalman=Kalman_Filter()
     
@@ -189,7 +194,7 @@ def main():
     #for k in range(num_steps)
         rospy.Subscriber("/fiducial_transforms",FiducialTransformArray,kalman.callback)
         if len(kalman.estimated_x)!=0:
-            rospy.loginfo(f"Position X:{kalman.estimated_x[-1]},\n Position Y:{kalman.estimated_y[-1]}\n Orientation:{kalman.estimated_ang[-1]} ")
+            rospy.loginfo(f"\nPosition X:{kalman.estimated_x[-1]},\n Position Y:{kalman.estimated_y[-1]}\n Orientation:{kalman.estimated_ang[-1]} ")
 
         #kalman.callback(0)
         kalman.loop.sleep()
@@ -197,7 +202,6 @@ def main():
     timesteps = np.arange(num_steps)
     if plot!=0:
         plt.figure(figsize=(10, 6))
-        plt.plot(timesteps, kalman.true_ang, label='True')
         plt.plot(timesteps, kalman.estimated_ang, label='Estimated')
         plt.plot(timesteps, kalman.observated_ang, label='Observed')
         plt.xlabel('Timesteps')
@@ -205,7 +209,6 @@ def main():
         plt.legend()
             
         plt.figure(figsize=(10, 6))
-        plt.plot(timesteps, kalman.true_y, label='True')
         plt.plot(timesteps, kalman.estimated_y, label='Estimated')
         plt.plot(timesteps, kalman.observated_y, label='Observed')
         plt.xlabel('Timesteps')
@@ -213,7 +216,6 @@ def main():
         plt.legend()
 
         plt.figure(figsize=(10, 6))
-        plt.plot(timesteps, kalman.true_x, label='True')
         plt.plot(timesteps, kalman.estimated_x, label='Estimated')
         plt.plot(timesteps, kalman.observated_x, label='Observed')
         plt.xlabel('Timesteps')
