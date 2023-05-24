@@ -12,7 +12,7 @@ import cv2
 class Kalman_Filter():
     def __init__(self):
         
-        self.Aruco_location={0:(1,2,np.pi/2),1:(5,1,np.pi/2),2:(2,1,np.pi/2),3:(4,3,np.pi/2),4:(2,3,np.pi/2),5:(10,2,np.pi/2),10:(1,1,np.pi/2)}
+        self.Aruco_location={0:(1,2,0.5,np.pi/2),1:(5,1,0.5,np.pi/2),2:(2,1,0.5,np.pi/2),3:(4,3,0.5,np.pi/2),4:(2,3,np.pi/2),5:(10,2,0.5,np.pi/2),10:(1,1,0.5,np.pi/2)}
         rospy.init_node('kalman_filter', anonymous=True)
         # Time interval in seconds
         self.dk = 1
@@ -141,25 +141,23 @@ class Kalman_Filter():
         if len(msg.transforms)!=0:
             for i in msg.transforms:
                 msg=msg.transforms[-1]
-                xAruco,yAruco,angleAruco=self.Aruco_location[msg.fiducial_id]
+                xAruco,yAruco,zAruco,angleAruco=self.Aruco_location[msg.fiducial_id]
                 translation=msg.transform.translation
                 rotation=msg.transform.rotation
-                RmatrixAruco=R.from_euler('z', angleAruco, degrees=False).as_matrix()
-                TmatrixAruco=np.array([xAruco,yAruco,0])
+                RmatrixAruco_world=R.from_euler('z', angleAruco, degrees=False).as_matrix()
+                TmatrixAruco_world=np.array([xAruco,yAruco,zAruco])
                 
-                rotationMatrix=R.from_quat([rotation.x, rotation.y, rotation.z, rotation.w])
-                rotationMatrix=rotationMatrix.as_matrix()
-                cv2.Rodrigues(rotationMatrix,rotationMatrix)
-                translationMatrix=np.array([translation.x,translation.y,translation.z])
-                pos=np.dot((translationMatrix-TmatrixAruco).transpose(),rotationMatrix)
-                cv2.Rodrigues(rotationMatrix,rotationMatrix)
-                angle=R.from_matrix(rotationMatrix).as_euler('zxy', degrees=False)[0]
+                rotationMatrix_Camera_ARuco=R.from_quat([rotation.x, rotation.y, rotation.z, rotation.w]).as_matrix()
+                position_Camera_Aruco=np.array([translation.x,translation.y,translation.z])
+                position_Aruco_camera=-np.dot(position_Camera_Aruco,rotationMatrix_Camera_ARuco.transpose())
+                postion_Camera_World=np.dot(position_Aruco_camera,RmatrixAruco_world)+TmatrixAruco_world
+                rotation_Camera_Word=np.dot(rotationMatrix_Camera_ARuco.transpose(),RmatrixAruco_world)
+                angle= R.from_matrix(rotation_Camera_Word).as_euler('zxy', degrees=False)[0]
+               
 
-                #a=2*(rotation.x*rotation.y-rotation.z*rotation.w)
-                #b=rotation.w**2-rotation.x**2-rotation.y**2+rotation.z**2
-                #angle=atan2(a,b)
-                xArray.append(pos[0])
-                yArray.append(pos[1])
+               
+                xArray.append(postion_Camera_World[0])
+                yArray.append(postion_Camera_World[1])
                 orientationArray.append(angle)
                 
                
