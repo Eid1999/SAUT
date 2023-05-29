@@ -16,8 +16,8 @@ matplotlib.use('TkAgg')
 class Kalman_Filter():
     def __init__(self):
 
-        
-        self.Aruco_location={1:(0,85,5,np.pi/2),2:(481,85,5,-np.pi/2),9:(316,0,5,-np.pi),3:(165,170,5,-np.pi),8:(316,0,5,np.pi),7:(165,0,5,np.pi)}
+        self.r0=0
+        self.Aruco_location={1:(0,85,20,np.pi/2),2:(481,85,20,-np.pi/2),9:(316,170,20,np.pi),3:(165,170,20,np.pi),8:(316,0,20,-np.pi),7:(165,0,20,-np.pi)}
         rospy.init_node('kalman_filter', anonymous=True)
         # Time interval in seconds
         self.dk = 1
@@ -59,11 +59,11 @@ class Kalman_Filter():
         # Sensor measurement noise covariance matrix
         # Measures how certain you are about the sensor data, R will be near zero if you trust it.
         #TRIAL AND ERROR! WE NEED TO RUN TESTS TO UNDERSTAND WHICH ARE THE BEST VALUES!
-        self.Q_k =np.array([[5,  0,   0, 0, 0],
-                        [  0,5,   0, 0, 0],
-                        [  0,  0, 1,0 ,0 ],
-                        [  0,  0, 0,1 ,0 ],
-                        [  0,  0, 0,0 ,1 ],
+        self.Q_k =np.array([[10,  0,   0, 0, 0],
+                        [  0,10,   0, 0, 0],
+                        [  0,  0, 10,0 ,0 ],
+                        [  0,  0, 0,10 ,0 ],
+                        [  0,  0, 0,0 ,10 ],
                         ])
 
     
@@ -72,7 +72,7 @@ class Kalman_Filter():
    
             
         # x_k_minus_1
-        self.state_estimate_k_minus_1 = np.array([0.85,1.71,0.5,0.0,0.0])
+        self.state_estimate_k_minus_1 = np.array([0.85,1.71,np.pi/2,0.0,0.0])
         self.z_k_observation_vector=self.state_estimate_k_minus_1
         
             
@@ -110,8 +110,7 @@ class Kalman_Filter():
                            [1,0],
                            [0,1]])
 
-        self.state_estimate_k = np.dot(self.A_k_minus_1, self.state_estimate_k_minus_1) + np.dot(B_estimate,self.u_k_minus_1) + self.process_noise_k_minus_1
-
+        self.state_estimate_k = np.dot(self.A_k_minus_1, self.state_estimate_k_minus_1) + np.dot(B_estimate,self.u_k_minus_1)
                 
         self.E_k = self.A_k_minus_1 @ self.E_k_minus_1 @ self.A_k_minus_1.T + (self.Q_k)
         
@@ -148,25 +147,34 @@ class Kalman_Filter():
                 RmatrixAruco_world=R.from_euler('z', angleAruco, degrees=False).as_matrix()
                 TmatrixAruco_world=(np.array([xAruco,yAruco,zAruco])/100).transpose()
                 
-                rotationMatrix_Camera_ARuco=R.from_quat([rotation.x, rotation.y, rotation.z, rotation.w]).as_matrix()
-                position_Camera_Aruco=np.array([translation.x,translation.y,translation.z]).transpose()
+                #rotationMatrix_Camera_ARuco=R.from_quat([rotation.x,rotation.y,rotation.z,rotation.w]).as_matrix()
+                position_Camera_Aruco=np.array([translation.x,translation.y,-translation.z]).transpose()
+                rotationMatrix_Camera_ARuco=R.from_euler('z', np.pi/2, degrees=False).as_matrix()
+                
+                
                 position_Aruco_camera=-np.dot(rotationMatrix_Camera_ARuco.transpose(),position_Camera_Aruco)
-                postion_Camera_World=np.dot(RmatrixAruco_world,position_Aruco_camera)+TmatrixAruco_world
+                position_Camera_World=np.dot(RmatrixAruco_world,position_Aruco_camera)+TmatrixAruco_world
                 rotation_Camera_Word=np.dot(rotationMatrix_Camera_ARuco.transpose(),RmatrixAruco_world)
+                
+                #position_Aruco_camera=position_Camera_Aruco
+                #position_Camera_World=np.dot(RmatrixAruco_world.transpose(),position_Aruco_camera-TmatrixAruco_world)
+                #rotation_Camera_Word=np.dot(rotationMatrix_Camera_ARuco,RmatrixAruco_world)
+                
+                
+                
                 angle= R.from_matrix(rotation_Camera_Word).as_euler('zxy', degrees=False)[0]
-               
-
-               
-                xArray.append(postion_Camera_World[0])
-                yArray.append(postion_Camera_World[1])
+                xArray.append(position_Camera_World[0])
+                yArray.append(position_Camera_World[1])
                 orientationArray.append(angle)
                 
             
             x=sum(xArray)/len(xArray)
             y=sum(yArray)/len(yArray)
             orientation=sum(orientationArray)/len(orientationArray)
-            
-            obs_vel=np.sqrt((x-self.z_k_observation_vector[0])**2+(y-self.z_k_observation_vector[1])**2)/self.dk
+            rospy.loginfo(f"id:{msg.fiducial_id},pos:{x},{y},{orientation},{position_Camera_Aruco}")
+            self.r1=np.sqrt((x-self.z_k_observation_vector[0])**2+(y-self.z_k_observation_vector[1])**2)
+            obs_vel=(self.r1-self.r0)/self.dk
+            self.r0=self.r1
             obs_ang_vel=(orientation-self.z_k_observation_vector[2])/self.dk
             self.predict()
             self.z_k_observation_vector= [x,y,orientation,obs_vel,obs_ang_vel]
