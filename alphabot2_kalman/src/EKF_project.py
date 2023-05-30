@@ -17,10 +17,10 @@ class Kalman_Filter():
     def __init__(self):
 
         self.r0=0
-        self.Aruco_location={1:(0,85,20,np.pi/2),2:(481,85,20,-np.pi/2),9:(316,170,20,np.pi),3:(165,170,20,np.pi),8:(316,0,20,-np.pi),7:(165,0,20,-np.pi)}
+        self.Aruco_location={1:(0,85,20,np.pi),2:(481,85,20,0),9:(316,170,20,np.pi/2),3:(165,170,20,np.pi/2),8:(316,0,20,-np.pi/2),7:(165,0,20,-np.pi/2)}
         rospy.init_node('kalman_filter', anonymous=True)
         # Time interval in seconds
-        self.dk = 1
+        self.dk = 10
         
             # Node cycle rate (in Hz).
             
@@ -36,7 +36,7 @@ class Kalman_Filter():
                         ])
 
         #Noise of the state space model
-        self.process_noise_k_minus_1 = np.array([0.01,0.01,0.003,0.003,0.003])
+        self.process_noise_k_minus_1 = np.array([1,1,1,1,1]).transpose()*0.00001
 
 
         # State model noise covariance matrix
@@ -45,7 +45,7 @@ class Kalman_Filter():
                         [  0,  0, 1,0 ,0 ],
                         [  0,  0, 0,1 ,0 ],
                         [  0,  0, 0,0 ,1 ],
-                        ])
+                        ])*2
 
 
         # Measurement matrix
@@ -54,16 +54,16 @@ class Kalman_Filter():
                         [  0,  0, 1,0 ,0 ],
                         [  0,  0, 0,1 ,0 ],
                         [  0,  0, 0,0 ,1 ],
-                        ])
+                        ])*0.5
 
         # Sensor measurement noise covariance matrix
         # Measures how certain you are about the sensor data, R will be near zero if you trust it.
         #TRIAL AND ERROR! WE NEED TO RUN TESTS TO UNDERSTAND WHICH ARE THE BEST VALUES!
-        self.Q_k =np.array([[10,  0,   0, 0, 0],
-                        [  0,10,   0, 0, 0],
-                        [  0,  0, 10,0 ,0 ],
-                        [  0,  0, 0,10 ,0 ],
-                        [  0,  0, 0,0 ,10 ],
+        self.Q_k =np.array([[1,  0,   0, 0, 0],
+                        [  0,1,   0, 0, 0],
+                        [  0,  0, 1,0 ,0 ],
+                        [  0,  0, 0,1 ,0 ],
+                        [  0,  0, 0,0 , 1],
                         ])
 
     
@@ -72,12 +72,11 @@ class Kalman_Filter():
    
             
         # x_k_minus_1
-        self.state_estimate_k_minus_1 = np.array([0.85,1.71,np.pi/2,0.0,0.0])
+        self.state_estimate_k_minus_1 = np.array([0.85,1.55,np.pi,0.0,0.0]).transpose()
         self.z_k_observation_vector=self.state_estimate_k_minus_1
         
             
-        #imput
-        self.u_k_minus_1 = np.array([0.1,0.05])
+    
             
         # State covariance matrix
         self.E_k_minus_1 = np.array([[0.1,  0,   0, 0, 0],
@@ -98,21 +97,23 @@ class Kalman_Filter():
         self.estimated_ang_vel = []
         self.observated_vel=[]
         self.observated_ang_vel=[]
+        self.predict_array=[]
             
 
     # Predict the state estimate at time k based on the state 
     # estimate at time k-1 and the control input applied at time k-1.
     def predict(self):
 
-        B_estimate = np.array([[np.cos(self.state_estimate_k_minus_1[2])*self.dk, 0],
-                           [np.sin(self.state_estimate_k_minus_1[2])*self.dk, 0],
-                           [0, self.dk],
-                           [1,0],
-                           [0,1]])
+        B_estimate = np.array([self.state_estimate_k_minus_1[3]*np.cos(self.state_estimate_k_minus_1[2])*self.dk,
+                           self.state_estimate_k_minus_1[3]*np.sin(self.state_estimate_k_minus_1[2])*self.dk,
+                           self.dk*self.state_estimate_k_minus_1[4],
+                           0,
+                           0]).transpose()
 
-        self.state_estimate_k = np.dot(self.A_k_minus_1, self.state_estimate_k_minus_1) + np.dot(B_estimate,self.u_k_minus_1)
+        self.state_estimate_k = np.dot(self.A_k_minus_1, self.state_estimate_k_minus_1) + B_estimate+self.process_noise_k_minus_1
+        self.predict_array.append(self.state_estimate_k)
                 
-        self.E_k = self.A_k_minus_1 @ self.E_k_minus_1 @ self.A_k_minus_1.T + (self.Q_k)
+        self.E_k = self.A_k_minus_1 @ self.E_k_minus_1 @ self.A_k_minus_1.T + self.R_k
         
     
 
@@ -123,9 +124,9 @@ class Kalman_Filter():
 
             measurement_residual_y_k = self.z_k_observation_vector - (self.C_k @ self.state_estimate_k)
             
-            S_k = self.C_k @ self.E_k @ self.C_k.T + self.Q_k
+            S_k = self.C_k @ self.E_k @ self.C_k.T + self.R_k
         
-            K_k = self.E_k @ self.C_k.T @ np.linalg.pinv(S_k)
+            K_k = self.E_k @ self.C_k.T @ np.linalg.inv(S_k)
                 
             state_estimate_k = self.state_estimate_k + (K_k @ measurement_residual_y_k)
             self.estimated_x.append(state_estimate_k[0])
@@ -143,13 +144,13 @@ class Kalman_Filter():
             for  msg in msgs.transforms:
                 xAruco,yAruco,zAruco,angleAruco=self.Aruco_location[msg.fiducial_id]
                 translation=msg.transform.translation
-                rotation=msg.transform.rotation
+                #rotation=msg.transform.rotation
                 RmatrixAruco_world=R.from_euler('z', angleAruco, degrees=False).as_matrix()
                 TmatrixAruco_world=(np.array([xAruco,yAruco,zAruco])/100).transpose()
                 
                 #rotationMatrix_Camera_ARuco=R.from_quat([rotation.x,rotation.y,rotation.z,rotation.w]).as_matrix()
                 position_Camera_Aruco=np.array([translation.x,translation.y,-translation.z]).transpose()
-                rotationMatrix_Camera_ARuco=R.from_euler('z', np.pi/2, degrees=False).as_matrix()
+                rotationMatrix_Camera_ARuco=R.from_euler('z', np.arctan2(translation.y,translation.x), degrees=False).as_matrix()
                 
                 
                 position_Aruco_camera=-np.dot(rotationMatrix_Camera_ARuco.transpose(),position_Camera_Aruco)
@@ -171,7 +172,7 @@ class Kalman_Filter():
             x=sum(xArray)/len(xArray)
             y=sum(yArray)/len(yArray)
             orientation=sum(orientationArray)/len(orientationArray)
-            rospy.loginfo(f"id:{msg.fiducial_id},pos:{x},{y},{orientation},{position_Camera_Aruco}")
+            #rospy.loginfo(f"id:{msg.fiducial_id},pos:{x},{y},{orientation},{position_Camera_Aruco}")
             self.r1=np.sqrt((x-self.z_k_observation_vector[0])**2+(y-self.z_k_observation_vector[1])**2)
             obs_vel=(self.r1-self.r0)/self.dk
             self.r0=self.r1
@@ -207,6 +208,7 @@ def main():
     
     fig,ax=plt.subplots()
     line, = ax.plot([], [],label='Estimated')
+    #line2,=ax.plot([],[],label='Predicted')
     line1,=ax.plot([],[],label='Observed')
     plt.ion()
     plt.show()
@@ -219,6 +221,7 @@ def main():
             rospy.loginfo(f"\nPosition X:{kalman.estimated_x[-1]}\n Position Y:{kalman.estimated_y[-1]}\n Orientation:{kalman.estimated_ang[-1]} ")
             line.set_data(kalman.estimated_y, kalman.estimated_x)
             line1.set_data(kalman.observated_y, kalman.observated_x)
+            #line2.set_data(kalman.predict_array[1], kalman.predict_array[0])
             ax.relim()
             ax.autoscale_view()
             plt.legend()
