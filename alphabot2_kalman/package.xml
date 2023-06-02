@@ -15,6 +15,7 @@
     <depend>nav_msgs</depend>
     <depend>sensor_msgs</depend>
     <depend>fiducial_msgs</depend>
+
   
   <!-- Needed for generating messages -->
   <depend>message_runtime</depend>

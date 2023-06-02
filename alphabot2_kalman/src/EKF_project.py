@@ -4,13 +4,14 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-from fiducial_msgs.msg import FiducialTransformArray
+from fiducial_msgs.msg import FiducialTransformArray, FiducialArray
 from math import atan2
 from scipy.spatial.transform import Rotation as R
 import pylab as pl
 from IPython.display import clear_output
 import cv2
 import collections
+from sensor_msgs.msg import CameraInfo
 
 matplotlib.use('TkAgg')
 class Kalman_Filter():
@@ -72,8 +73,8 @@ class Kalman_Filter():
    
             
         # x_k_minus_1
-        self.state_estimate_k_minus_1 = np.array([0.85,1.55,np.pi,0.0,0.0]).transpose()
-        self.z_k_observation_vector=self.state_estimate_k_minus_1
+        self.state_estimate_k_minus_1 = []
+        
         
             
     
@@ -97,7 +98,8 @@ class Kalman_Filter():
         self.estimated_ang_vel = []
         self.observated_vel=[]
         self.observated_ang_vel=[]
-        self.predict_array=[]
+        self.predict_x=[]
+        self.predict_y=[]
             
 
     # Predict the state estimate at time k based on the state 
@@ -111,7 +113,8 @@ class Kalman_Filter():
                            0]).transpose()
 
         self.state_estimate_k = np.dot(self.A_k_minus_1, self.state_estimate_k_minus_1) + B_estimate+self.process_noise_k_minus_1
-        self.predict_array.append(self.state_estimate_k)
+        self.predict_x.append(self.state_estimate_k[0])
+        self.predict_y.append(self.state_estimate_k[1])
                 
         self.E_k = self.A_k_minus_1 @ self.E_k_minus_1 @ self.A_k_minus_1.T + self.R_k
         
@@ -144,15 +147,18 @@ class Kalman_Filter():
             for  msg in msgs.transforms:
                 xAruco,yAruco,zAruco,angleAruco=self.Aruco_location[msg.fiducial_id]
                 translation=msg.transform.translation
-                #rotation=msg.transform.rotation
+                rotation=msg.transform.rotation
                 RmatrixAruco_world=R.from_euler('z', angleAruco, degrees=False).as_matrix()
                 TmatrixAruco_world=(np.array([xAruco,yAruco,zAruco])/100).transpose()
                 
-                #rotationMatrix_Camera_ARuco=R.from_quat([rotation.x,rotation.y,rotation.z,rotation.w]).as_matrix()
-                position_Camera_Aruco=np.array([translation.x,translation.y,-translation.z]).transpose()
-                rotationMatrix_Camera_ARuco=R.from_euler('z', np.arctan2(translation.y,translation.x), degrees=False).as_matrix()
-                
-                
+                #corner=[vertices.x0, vertices.y0, vertices.x1, vertices.y1, vertices.x2, vertices.y2, vertices.x3,vertices.y3]
+                #dist=np.sqrt(translation.x**2+translation.y**2+translation.z**2)
+                rot=R.from_euler('y', 0, degrees=True).as_matrix()
+                position_Camera_Aruco=np.array([translation.x,translation.y,translation.z]).transpose()@rot
+                #rotationMatrix_Camera_ARuco=R.from_quat([rotation.x,rotation.y,rotation.z,rotation.w]).as_matrix()@rot
+                #rotationMatrix_Camera_ARuco=R.from_euler('z', np.arccos(position_Camera_Aruco @ position_Camera_Aruco-int(position_Camera_Aruco @ position_Camera_Aruco)) / (np.linalg.norm(position_Camera_Aruco) * np.linalg.norm(position_Camera_Aruco)), degrees=False).as_matrix()
+                rotationMatrix_Camera_ARuco=R.from_euler('z', np.arctan2(position_Camera_Aruco[1],position_Camera_Aruco[0])).as_matrix()
+                #_, rotationMatrix_Camera_ARuco, position_Camera_Aruco = cv2.aruco.estimatePoseSingleMarkers(corner, dist, self.K, self.D)
                 position_Aruco_camera=-np.dot(rotationMatrix_Camera_ARuco.transpose(),position_Camera_Aruco)
                 position_Camera_World=np.dot(RmatrixAruco_world,position_Aruco_camera)+TmatrixAruco_world
                 rotation_Camera_Word=np.dot(rotationMatrix_Camera_ARuco.transpose(),RmatrixAruco_world)
@@ -172,11 +178,19 @@ class Kalman_Filter():
             x=sum(xArray)/len(xArray)
             y=sum(yArray)/len(yArray)
             orientation=sum(orientationArray)/len(orientationArray)
+            
             #rospy.loginfo(f"id:{msg.fiducial_id},pos:{x},{y},{orientation},{position_Camera_Aruco}")
+            if  len(self.state_estimate_k_minus_1)==0:
+                self.state_estimate_k_minus_1=[x,y,orientation,0,0]
+                self.z_k_observation_vector=self.state_estimate_k_minus_1
             self.r1=np.sqrt((x-self.z_k_observation_vector[0])**2+(y-self.z_k_observation_vector[1])**2)
             obs_vel=(self.r1-self.r0)/self.dk
+            
+            
+            
             self.r0=self.r1
             obs_ang_vel=(orientation-self.z_k_observation_vector[2])/self.dk
+            
             self.predict()
             self.z_k_observation_vector= [x,y,orientation,obs_vel,obs_ang_vel]
             self.observated_x.append(self.z_k_observation_vector[0])
@@ -189,6 +203,11 @@ class Kalman_Filter():
                 
             self.state_estimate_k_minus_1 = self.state_estimate_k
             self.E_k_minus_1 = self.E_k
+    # def callback1(self,msg):
+    #     self.msg1=msg
+    # def camera_info_callback(self, camera_info):
+    #     self.K = np.array(camera_info.K).reshape(3, 3)
+    #     self.D = np.array(camera_info.D)
             
             
         
@@ -208,20 +227,22 @@ def main():
     
     fig,ax=plt.subplots()
     line, = ax.plot([], [],label='Estimated')
-    #line2,=ax.plot([],[],label='Predicted')
+    line2,=ax.plot([],[],label='Predicted')
     line1,=ax.plot([],[],label='Observed')
     plt.ion()
     plt.show()
     #plt.ion()
     
     while not rospy.is_shutdown():
-    #for k in range(num_steps)
+        #rospy.Subscriber('/camera_info', CameraInfo, kalman.camera_info_callback)
+        #rospy.Subscriber("/fiducial_vertices",FiducialArray,kalman.callback1)
         rospy.Subscriber("/fiducial_transforms",FiducialTransformArray,kalman.callback)
+        
         if len(kalman.estimated_x)!=0:
             rospy.loginfo(f"\nPosition X:{kalman.estimated_x[-1]}\n Position Y:{kalman.estimated_y[-1]}\n Orientation:{kalman.estimated_ang[-1]} ")
             line.set_data(kalman.estimated_y, kalman.estimated_x)
             line1.set_data(kalman.observated_y, kalman.observated_x)
-            #line2.set_data(kalman.predict_array[1], kalman.predict_array[0])
+            line2.set_data(kalman.predict_y, kalman.predict_x)
             ax.relim()
             ax.autoscale_view()
             plt.legend()
