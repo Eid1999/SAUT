@@ -22,9 +22,9 @@ from filterpy.kalman import ExtendedKalmanFilter as EKF
 
 
     
-class Kalman_Filter(EKF):
+class Kalman_Filter():
     def __init__(self):
-        EKF.__init__(self, 5, 2, 0)
+        #EKF.__init__(self, 5, 2, 0)
         self.Aruco_location={1:(0,85,20,np.pi),2:(481,85,20,0),9:(316,170,20,np.pi/2),3:(165,170,20,np.pi/2),8:(316,0,20,-np.pi/2),7:(165,0,20,-np.pi/2)}
         self.dt = 1
         self.x = np.array([[171,85, np.pi,0,0]]).T
@@ -129,6 +129,7 @@ class Kalman_Filter(EKF):
             for  msg in msgs.transforms:
                 xAruco,yAruco,zAruco,angleAruco=self.Aruco_location[msg.fiducial_id]
                 translation=msg.transform.translation
+                
                 d = np.sqrt((translation.z)**2 + (translation.y)**2)  
                 theta = np.arctan2(translation.y, translation.z)
                 Aruco_camera=np.array([d,theta]).T
@@ -136,9 +137,9 @@ class Kalman_Filter(EKF):
                 self.predict()
                 self.update(Aruco_camera,Aruco_pos)
                 #self.update(Aruco_camera, HJacobian=self.measurement_jacobian, Hx=self.measurement_model, residual=self.residual,args=(Aruco_pos), hx_args=(Aruco_pos))
-            self.estimated_x.append(self.x[0])
-            self.estimated_y.append(self.x[1])
-            self.estimated_ang.append(self.x[2])
+                self.estimated_x.append(self.x[0])
+                self.estimated_y.append(self.x[1])
+                self.estimated_ang.append(self.x[2])
             self.time=time()
         
     def listener(self):
