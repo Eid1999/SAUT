@@ -43,13 +43,13 @@ class Kalman_Filter():
         # # 6 Arucos
         #self.Aruco_location={1:(0,85,),2:(481,85),9:(316,170),3:(165,170),8:(316,0),7:(165,0)}
         self.t = .5
-        self.x = np.array([[0, 0, 0, 0, 0]]).T
+        self.x = np.array([[1.79, .39, np.arctan2(.39, 1.79), 0, 0]]).T
         # Initial Uncertanty of the state variables .50^2 m, (pi/4)^2 radians,10^2 m/s, (pi/40)^2 radians/s
-        self.P = np.diag([1.0**2, 1.0**2, (np.pi/4)
-                         ** 2, .80**2, (np.pi/40)**2])
+        self.P = np.diag([1.0**1, 1.0**2, (np.pi/4)
+                         ** 2, .80**2, (np.pi/40)**2])*10**(-6)
         self.time = time()
-
-        self.estimated_x = []
+        self.Q=np.diag([0.00000,0.00000,10,.04,10])*10**(-10)
+        self.estimated = []
         self.estimated_y = []
         self.estimated_ang = []
         self.predict_x = []
@@ -61,7 +61,7 @@ class Kalman_Filter():
         self.loop = rospy.Rate(1/self.t)
 
         #self.R_k = np.diag([.2,  0.008])
-        self.R_k = np.diag([.06,   0.006])
+        self.R_k = np.diag([.06,   0.008])
 
     def state_model(self):
         x = self.x[0, 0]
@@ -92,7 +92,7 @@ class Kalman_Filter():
         self.x = self.state_model()
 
         F = self.state_jacobian()
-        self.P = F @ self.P @ F.T
+        self.P = F @ self.P @ F.T + self.Q
         self.predict_x.append(self.x[0])
         self.predict_y.append(self.x[1])
         
@@ -157,9 +157,10 @@ class Kalman_Filter():
                 self.update(Aruco_camera, Aruco_pos)
                 # self.update(Aruco_camera, HJacobian=self.measurement_jacobian, Hx=self.measurement_model, residual=self.residual,args=(Aruco_pos), hx_args=(Aruco_pos))
                 self.time = time()
-                self.estimated_x.append(np.ndarray.tolist(self.x[0]))
-                self.estimated_y.append(np.ndarray.tolist(self.x[1]))
+            self.estimated.append([self.x[0],self.x[1]])
+            
             self.estimated_ang.append(self.x[2])
+
             
 
     def listener(self):
@@ -195,10 +196,10 @@ def main():
         # rospy.Subscriber("/fiducial_vertices",FiducialArray,kalman.callback1)
         kalman.listener()
 
-        if len(kalman.estimated_x) != 0:
+        if len(kalman.estimated) != 0:
             rospy.loginfo(
-                f"\nPosition X:{kalman.estimated_x[-1]}\n Position Y:{kalman.estimated_y[-1]}\n Orientation:{np.rad2deg(kalman.estimated_ang[-1])%360} ")
-            line.set_data(kalman.estimated_x, kalman.estimated_y)
+                f"\nPosition X:{kalman.estimated[-1][0]}\n Position Y:{kalman.estimated[-1][1]}\n Orientation:{np.rad2deg(kalman.estimated_ang[-1])%360} ")
+            line.set_data(np.array(kalman.estimated)[:,0], np.array(kalman.estimated)[:,1])
             #line2.set_data(kalman.predict_x, kalman.predict_y)
             plt.legend()
             plt.draw()
